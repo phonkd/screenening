@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec nix run "$(dirname "$(readlink -f "$0")")" -- "$@"
