@@ -19,8 +19,60 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(Profile.from_dict(dock.to_dict()).to_dict(), dock.to_dict())
         for profile in (solo, dock):
             for monitor in profile.monitors:
-                self.assertEqual(monitor.to_dict()['resolution_mode'], 'highres')
-                self.assertIn('mode = highres', monitor.to_hyprland_v2_block())
+                self.assertEqual(monitor.to_dict()['resolution_mode'], 'explicit')
+                self.assertIn(f'mode = {monitor.width}x{monitor.height}@',
+                              monitor.to_hyprland_v2_block())
+
+    def test_resolution_upgrade_uses_selected_dimensions(self):
+        monitors = self.monitors()
+        for monitor in monitors[1:]:
+            monitor.width, monitor.height = 1920, 1080
+            monitor.available_modes = ['1920x1080@100.00Hz', '2560x1440@60Hz',
+                                       '2560x1440@99.95Hz']
+        solo, dock = make_profiles(monitors, 'DP-1')
+        self.assertEqual([(m.x, m.y) for m in dock.monitors],
+                         [(1600, 1440), (0, 0), (2560, 0)])
+        for monitor in dock.monitors[1:]:
+            self.assertEqual((monitor.width, monitor.height, monitor.refresh_rate),
+                             (2560, 1440, 99.95))
+            block = monitor.to_hyprland_v2_block()
+            self.assertIn('mode = 2560x1440@99.95', block)
+            self.assertIn(f'position = {monitor.x}x{monitor.y}', block)
+        restored = Profile.from_dict(dock.to_dict())
+        self.assertEqual(restored.to_dict(), dock.to_dict())
+        self.assertEqual(monitors[1].width, 1920)
+
+    def test_laptop_upgrade_applies_to_solo_and_dock(self):
+        monitors = self.monitors()
+        monitors[0].available_modes = ['2560x1600@60Hz']
+        solo, dock = make_profiles(monitors, 'DP-1')
+        self.assertEqual((solo.monitors[0].width, solo.monitors[0].height), (2560, 1600))
+        self.assertEqual((solo.monitors[0].x, solo.monitors[0].y), (0, 0))
+        self.assertEqual((dock.monitors[0].x, dock.monitors[0].y), (1280, 1440))
+
+    def test_upgrade_scaled_rotated_swapped_and_fractional(self):
+        from monique.models import Transform
+        monitors = self.monitors()
+        for monitor in monitors[1:]:
+            monitor.width, monitor.height = 1920, 1080
+            monitor.available_modes = ['2560x1440@99']
+        monitors[1].scale = 2
+        monitors[2].transform = Transform(1)
+        _, dock = make_profiles(monitors, 'DP-2')
+        self.assertEqual([(m.x, m.y) for m in dock.monitors],
+                         [(400, 2560), (0, 0), (1440, 1840)])
+        monitors[2].scale = 1.3
+        _, dock = make_profiles(monitors, 'DP-2')
+        laptop, left, right = dock.monitors
+        self.assertGreaterEqual(right.x, left.x + left.logical_width)
+        for monitor in (left, right):
+            self.assertGreaterEqual(laptop.y, monitor.y + monitor.logical_height)
+
+    def test_unparseable_modes_fail(self):
+        monitors = self.monitors()
+        monitors[1].available_modes = ['invalid']
+        with self.assertRaisesRegex(RuntimeError, 'DP-1'):
+            make_profiles(monitors, 'DP-1')
 
     def test_scaled_rotated_and_swap(self):
         from monique.models import Transform

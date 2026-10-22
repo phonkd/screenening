@@ -4,8 +4,10 @@ import argparse
 import copy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -44,7 +46,7 @@ def choose(prompt, rows):
 
 def make_profiles(monitors, left_name=None):
     _, Profile, WorkspaceRule = load_models()
-    from monique.models import ResolutionMode
+    from monique.models import PositionMode, ResolutionMode
     monitors = copy.deepcopy(monitors)
     internal = [m for m in monitors if m.is_internal]
     if len(internal) != 1:
@@ -59,7 +61,24 @@ def make_profiles(monitors, left_name=None):
     for m in monitors:
         if m.mirror_of:
             raise RuntimeError('Turn off mirroring in Monique before arranging these screens.')
-        m.resolution_mode = ResolutionMode.HIGHRES
+        # Resolve the mode before positioning, and save that exact mode so
+        # Hyprland and moniqued use the dimensions used for this layout.
+        modes = []
+        for mode in m.available_modes:
+            match = re.fullmatch(r'(\d+)x(\d+)@(\d+(?:\.\d+)?)(?:Hz)?', mode.strip())
+            if match:
+                width, height, refresh = match.groups()
+                candidate = (int(width), int(height), float(refresh))
+                if all(value > 0 for value in candidate):
+                    modes.append(candidate)
+        if m.available_modes and not modes:
+            raise RuntimeError(f'Cannot parse available display modes for {m.name}.')
+        if modes:
+            m.width, m.height, m.refresh_rate = max(
+                modes, key=lambda mode: (mode[0] * mode[1], mode[2], mode[0], mode[1]))
+        # If modes are unavailable, keep the known current mode explicitly.
+        m.resolution_mode = ResolutionMode.EXPLICIT
+        m.position_mode = PositionMode.EXPLICIT
     solo = copy.deepcopy(laptop)
     solo.x = solo.y = 0
 
@@ -77,10 +96,11 @@ def make_profiles(monitors, left_name=None):
     left = next(m for m in external if m.name == left_name)
     right = next(m for m in external if m is not left)
     # Bottom-align the upper pair, leaving no gap above the laptop.
-    height = round(max(left.logical_height, right.logical_height))
-    left.x, left.y = 0, height - round(left.logical_height)
-    right.x, right.y = round(left.logical_width), height - round(right.logical_height)
-    laptop.x = round((left.logical_width + right.logical_width - laptop.logical_width) / 2)
+    left_width, right_width = math.ceil(left.logical_width), math.ceil(right.logical_width)
+    height = math.ceil(max(left.logical_height, right.logical_height))
+    left.x, left.y = 0, height - math.ceil(left.logical_height)
+    right.x, right.y = left_width, height - math.ceil(right.logical_height)
+    laptop.x = round((left_width + right_width - laptop.logical_width) / 2)
     laptop.y = height
     fingerprint = '\n'.join(sorted(descriptions)).encode()
     name = 'screenening-dock-' + hashlib.sha256(fingerprint).hexdigest()[:10]

@@ -16,11 +16,12 @@ Applies the current left-to-right order, then asks whether to swap:
 - **uio**: right external
 - Undocked: all nine on the laptop
 
-Uses `highres` to prioritize resolution over refresh rate, preserves scale/rotation,
-and saves Monique profiles.
+Selects the advertised mode with the most pixels, then the highest refresh rate
+at that resolution. Preserves scale/rotation and saves exact modes and positions
+in Monique profiles. If no modes are advertised, keeps the current mode.
 My existing `moniqued` service restores them on dock/undock.
 Requires Hyprland and unique display descriptions; Nix supplies the tools.
-Positions use current display sizes; rerun if `highres` changes resolution.
+Positions use the selected display sizes, including scale and rotation.
 Esc keeps the applied layout; there is no timed rollback.
 
 ```sh
