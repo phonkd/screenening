@@ -19,8 +19,8 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(Profile.from_dict(dock.to_dict()).to_dict(), dock.to_dict())
         for profile in (solo, dock):
             for monitor in profile.monitors:
-                self.assertEqual(monitor.to_dict()['resolution_mode'], 'highrr')
-                self.assertIn('mode = highrr', monitor.to_hyprland_v2_block())
+                self.assertEqual(monitor.to_dict()['resolution_mode'], 'highres')
+                self.assertIn('mode = highres', monitor.to_hyprland_v2_block())
 
     def test_scaled_rotated_and_swap(self):
         from monique.models import Transform

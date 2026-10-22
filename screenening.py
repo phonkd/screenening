@@ -59,7 +59,7 @@ def make_profiles(monitors, left_name=None):
     for m in monitors:
         if m.mirror_of:
             raise RuntimeError('Turn off mirroring in Monique before arranging these screens.')
-        m.resolution_mode = ResolutionMode.HIGHRR
+        m.resolution_mode = ResolutionMode.HIGHRES
     solo = copy.deepcopy(laptop)
     solo.x = solo.y = 0
 
